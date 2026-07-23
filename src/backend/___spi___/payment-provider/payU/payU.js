@@ -90,7 +90,6 @@ export async function createTransaction(options) {
 
     const data = await response.json();
 
-
     if (!data.redirectUri || !data.orderId) {
       console.error("[PayU] Lack redirectUri/orderId:", data);
       return {

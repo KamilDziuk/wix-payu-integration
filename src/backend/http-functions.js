@@ -18,7 +18,6 @@ export async function post_payuNotify(request) {
     return badRequest();
   }
 
-
   try {
     if (order.status === "COMPLETED") {
       await wixPaymentProviderBackend.submitEvent({
@@ -29,7 +28,6 @@ export async function post_payuNotify(request) {
           },
         },
       });
-
     } else {
       console.error(
         "[PayU Webhook] Status:",
