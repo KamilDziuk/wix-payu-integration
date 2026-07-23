@@ -1,115 +1,75 @@
-# The Backend Code Folder
+#  PayU Payment Provider Service Plugin - Wix Velo
 
-This folder contains the backend code files for your site. These files correspond to the ones found in the [**Backend**](https://support.wix.com/en/article/velo-working-with-the-velo-sidebar#backend) section of the **Public & Backend** 
-![image](https://user-images.githubusercontent.com/89579857/184862813-e55cdd98-b723-4d64-b73c-593eb9af21c7.png) tab in the Velo sidebar. Add the following files to this folder to include them in your site:
-+ [**Web Modules:**](https://support.wix.com/en/article/velo-web-modules-calling-backend-code-from-the-frontend)  
-  These are files that allow you to expose functions in your site's backend that you can run in your frontend code. These files require a `.jsw` file extension.
-  >**Note:**  
-  >You can't change [web module permissions](https://support.wix.com/en/article/velo-about-web-module-permissions) in Wix editors when using Git Integration & Wix CLI. Instead, use the [permissions.json](#permissionsjson) file to set function permissions.
+A custom **PayU (BLIK / Card / Bank Transfer)** payment integration for [kulikstyle.com](https://www.kulikstyle.com), built as a **Wix Payment Provider Service Plugin** in Velo, after discovering that the native Wix <-> PayU integration didn't support BLIK.
 
-+ **data.js**  
-  A file for [adding data hooks](https://support.wix.com/en/article/velo-using-data-hooks) to your site's collections.
+![Status](https://img.shields.io/badge/status-live%20in%20production-brightgreen)
+![Platform](https://img.shields.io/badge/platform-Wix%20Velo-blue)
+![Payment](https://img.shields.io/badge/payments-PayU%20%7C%20BLIK-orange)
 
-+ **routers.js**  
-  A file for implementing [routing and sitemap](https://support.wix.com/en/article/velo-about-routers#routing-code) functionality for your site.
+---
 
-+ **events.js**  
-  A file for implementing your site's [backend event handlers](https://support.wix.com/en/article/velo-backend-events). 
+## Why this project exists
 
-+ **http-functions.js**  
-  A file for implementing [HTTP endpoints](https://www.wix.com/velo/reference/wix-http-functions/introduction) that are exposed on your site.
+Wix's native PayU integration (available under **Accept Payments**) only renders **card fields** at checkout - it never redirects to PayU's hosted payment page, so **BLIK, the most widely used payment method in Poland, never shows up**. The same turned out to be true for Wix's native Fondy integration.
 
-+ **jobs.config**  
-  A file for [scheduling recurring jobs](https://support.wix.com/en/article/velo-scheduling-recurring-jobs). Jobs consist of other backend code that's run at regular intervals.
-  
-+ **General backend files**  
-  JavaScript code files. You can import code from these files into any other backend file on your site. These files require a `.js` file extension.
+The fix: a custom **Payment Provider Service Plugin** that talks directly to the PayU REST API, exposing the full range of PayU payment methods (BLIK, card, instant bank transfer) as a native option on Wix checkout.
 
-Use the following syntax to import code from backend files: 
-```js 
-import { myFunctionName } from 'backend/myFileName';
-```  
-Trying to import from the relative path in your site's repo doesn't work.
+## How it works
 
-Learn more about [this repo's file structure](https://support.wix.com/en/article/velo-understanding-your-sites-github-repository-beta).
-
-## permissions.json
-This file defines [permissions](https://support.wix.com/en/article/velo-about-web-module-permissions) for the functions in your web module files. The file contains a key, `"web-methods"`, whose value is an object that can contain keys named after the web module files in your `backend` folder. Name these keys with the following syntax: `"backend/{path to file}myFile.jsw"`. The value for each file name key is an object that can contain keys named after the functions in that file. Each function key has a value with the following format:
-```js
-"backend/myFile.jsw": {
-  "siteOwner" : {
-    "invoke" : // Boolean
-  },
-  "siteMember" : {
-    "invoke" : // Boolean
-  },
-  "anonymous" : {
-    "invoke" : // Boolean
-  }  
-}
 ```
-These values reflect the different levels of web module function permissions. You can set them using the following options:
-| |`siteOwner`|`siteMember`|`anonymous`|
-|-|-----------|------------|-----------|
-|Owner-only access| `true` | `false` | `false`|
-|Site member access| `true` | `true` | `false`|
-|Anyone can access| `true` | `true`| `true`|
-
-The `"web-methods"` object must also contain a `"*"` key. The value for this key defines the default permissions that are applied to any function whose permissions you don't set manually.
-
-Here is an example `permissions.json` file for a site with a backend file called `helperFunctions.jsw`. The file's functions are called `calculate`, `fetchData`, and `syncWithServer`. In this case anyone can call `calculate`, site members can call `syncWithServer`, and only site owners can call `fetchData`.
-
-```json
-{
-  "web-methods": {
-    "*": {
-      "*": {
-        "siteOwner": {
-          "invoke": true
-        },
-        "siteMember": {
-          "invoke": true
-        },
-        "anonymous": {
-          "invoke": true
-        }
-      }
-    },
-    "backend/helperFunctions.jsw": {
-      "calculate": {
-        "siteOwner": {
-          "invoke": true
-        },
-        "siteMember": {
-          "invoke": true
-        },
-        "anonymous": {
-          "invoke": true
-        }
-      },
-      "fetchData": {
-        "siteOwner": {
-          "invoke": true
-        },
-        "siteMember": {
-          "invoke": false
-        },
-        "anonymous": {
-          "invoke": false
-        }
-      },
-      "syncWithServer": {
-        "siteOwner": {
-          "invoke": true
-        },
-        "siteMember": {
-          "invoke": true
-        },
-        "anonymous": {
-          "invoke": false
-        }
-      }
-    }
-  }
-}
+Customer -> Wix Checkout → selects "PayU - BLIK / Card / Bank Transfer"
+        -> createTransaction() creates an order via PayU REST API v2.1
+        -> customer is redirected to PayU's hosted payment page
+        -> pays (BLIK / card / bank transfer)
+        -> PayU sends a webhook (payuNotify) -> submitEvent() -> Wix eCommerce
+        -> order is marked as paid, inventory updates automatically
 ```
+
+## Project structure
+
+```
+src/backend/
+├── ___spi___/payment-provider/payu/
+│   ├── payu-config.js   # payment method config (getConfig)
+│   └── payu.js          # connectAccount / createTransaction / refundTransaction
+└── http-functions.js    # payuNotify webhook - receives PayU payment confirmations
+```
+
+## Credentials & secrets
+
+**No API keys or credentials are ever hardcoded in the source files.** All sensitive values are stored in **Wix Secrets Manager** and read at runtime via `wix-secrets-backend`:
+
+| Secret name           | Purpose                                   |
+|------------------------|--------------------------------------------|
+| `PAYU_CLIENT_ID`       | OAuth client ID for PayU REST API           |
+| `PAYU_CLIENT_SECRET`   | OAuth client secret for PayU REST API       |
+| `PAYU_POS_ID`          | PayU Point of Sale (merchant) ID            |
+
+The `posId` entered by the site owner on the **Connect PayU** screen in the Wix dashboard is also passed through `connectAccount()` and stored as part of the connected account's credentials - it is never exposed client-side.
+
+If you fork/reuse this plugin, add these three secrets in **Dev Mode -> Secrets Manager** before connecting the payment provider, or `getPayuToken()` will throw at runtime.
+
+##  Features
+
+- **BLIK, card, instant bank transfer** - the full set of PayU payment methods, available directly on Wix checkout.
+- **OAuth 2.0** - secure authentication against the PayU API (client credentials grant).
+- **Automatic order updates** - the `payuNotify` webhook integrates with `wix-payment-provider-backend`, so orders, inventory, and statuses update exactly like they would with a native payment method.
+- **Fraud-check data** - the real customer IP is forwarded to PayU (`fraudInformation.remoteIp`) for risk scoring.
+- **Amounts in grosz (minor units)** - correctly converted per PayU API requirements.
+- **Secrets isolated from source code** - see [Credentials & secrets](#-credentials--secrets) above.
+
+## The tricky part
+
+The plugin silently refused to register in Accept Payments for a long time, despite fully working, test-passing code. Root cause: `getConfig()` returned `paymentMethods` as a plain object `{ hostedPage: {...} }` instead of the **array** `[{ hostedPage: {...} }]` required by Wix's schema, and `logos` used a `url` key instead of the required `svg`/`png` keys. The schema mismatch caused a **silent registration failure** with no readable error - the code passed all functional tests (since those only check JS syntax), but failed schema validation at publish time.
+
+## Stack
+
+- **Wix Velo** (Payment Provider Service Plugin)
+- **Wix CLI + Git Integration** - local development in VS Code
+- **PayU REST API v2.1** (OAuth 2.0, Orders API, Notifications)
+
+
+---
+
+*Built with persistence, a lot of debugging, and one very helpful line in the official Wix docs. -
+[Wix payment provider service plugin](https://dev.wix.com/docs/develop-websites/articles/code-tutorials/wix-pay/tutorial-payment-provider-service-plugin)
