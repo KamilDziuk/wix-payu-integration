@@ -1,45 +1,76 @@
-# Git Integration & Wix CLI <img align="left" src="https://user-images.githubusercontent.com/89579857/185785022-cab37bf5-26be-4f11-85f0-1fac63c07d3b.png">
+#  PayU Payment Provider Service Plugin - Wix Velo
 
-This repo is part of Git Integration & Wix CLI, a set of tools that allows you to write, test, and publish code for your Wix site locally on your computer. 
+A custom **PayU (BLIK / Card / Bank Transfer)** payment integration for [kulikstyle.com](https://www.kulikstyle.com), built as a **Wix Payment Provider Service Plugin** in Velo, after discovering that the native Wix <-> PayU integration didn't support BLIK.
 
-Connect your site to GitHub, develop in your favorite IDE, test your code in real time, and publish your site from the command line.
+![Status](https://img.shields.io/badge/status-live%20in%20production-brightgreen)
+![Platform](https://img.shields.io/badge/platform-Wix%20Velo-blue)
+![Payment](https://img.shields.io/badge/payments-PayU%20%7C%20BLIK-orange)
 
-## Set up this repository in your IDE
-This repo is connected to a Wix site. That site tracks this repo's default branch. Any code committed and pushed to that branch from your local IDE appears on the site.
+---
 
-Before getting started, make sure you have the following things installed:
-* [Git](https://git-scm.com/download)
-* [Node](https://nodejs.org/en/download/), version 14.8 or later.
-* [npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm) or [yarn](https://yarnpkg.com/getting-started/install)
-* An SSH key [added to your GitHub account](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account).
+## Why this project exists
 
-To set up your local environment and start coding locally, do the following:
+Wix's native PayU integration (available under **Accept Payments**) only renders **card fields** at checkout - it never redirects to PayU's hosted payment page, so **BLIK, the most widely used payment method in Poland, never shows up**. The same turned out to be true for Wix's native Fondy integration.
 
-1. Open your terminal and navigate to where you want to store the repo.
-1. Clone the repo by running `git clone <your-repository-url>`.
-1. Navigate to the repo's directory by running `cd <directory-name>`.
-1. Install the repo's dependencies by running `npm install` or `yarn install`.
-1. Install the Wix CLI by running `npm install -g @wix/cli` or `yarn global add @wix/cli`.  
-   Once you've installed the CLI globally, you can use it with any Wix site's repo.
+The fix: a custom **Payment Provider Service Plugin** that talks directly to the PayU REST API, exposing the full range of PayU payment methods (BLIK, card, instant bank transfer) as a native option on Wix checkout.
 
-For more information, see [Setting up Git Integration & Wix CLI](https://support.wix.com/en/article/velo-setting-up-git-integration-wix-cli-beta).
+## How it works
 
-## Write Velo code in your IDE
-Once your repo is set up, you can write code in it as you would in any other non-Wix project. The repo's file structure matches the [public](https://support.wix.com/en/article/velo-working-with-the-velo-sidebar#public), [backend](https://support.wix.com/en/article/velo-working-with-the-velo-sidebar#backend), and [page code](https://support.wix.com/en/article/velo-working-with-the-velo-sidebar#page-code) sections in Editor X.
+```
+Customer -> Wix Checkout → selects "PayU - BLIK / Card / Bank Transfer"
+        -> createTransaction() creates an order via PayU REST API v2.1
+        -> customer is redirected to PayU's hosted payment page
+        -> pays (BLIK / card / bank transfer)
+        -> PayU sends a webhook (payuNotify) -> submitEvent() -> Wix eCommerce
+        -> order is marked as paid, inventory updates automatically
+```
 
-Learn more about [this repo's file structure](https://support.wix.com/en/article/velo-understanding-your-sites-github-repository-beta).
+## Project structure
 
-## Test your code with the Local Editor
-The Local Editor allows you test changes made to your site in real time. The code in your local IDE is synced with the Local Editor, so you can test your changes before committing them to your repo. You can also change the site design in the Local Editor and sync it with your IDE.
+```
+src/backend/
+├── ___spi___/payment-provider/payu/
+│   ├── payu-config.js   # payment method config (getConfig)
+│   └── payu.js          # connectAccount / createTransaction / refundTransaction
+└── http-functions.js    # payuNotify webhook - receives PayU payment confirmations
+```
 
-Start the Local Editor by navigating to this repo's directory in your terminal and running `wix dev`.
+## Credentials & secrets
 
-For more information, see [Working with the Local Editor](https://support.wix.com/en/article/velo-working-with-the-local-editor-beta).
+**No API keys or credentials are ever hardcoded in the source files.** All sensitive values are stored in **Wix Secrets Manager** and read at runtime via `wix-secrets-backend`:
 
-## Preview and publish with the Wix CLI
-The Wix CLI is a tool that allows you to work with your site locally from your computer's terminal. You can use it to build a preview version of your site and publish it. You can also use the CLI to install [approved npm packages](https://support.wix.com/en/article/velo-working-with-npm-packages) to your site.
+| Secret name           | Purpose                                   |
+|------------------------|--------------------------------------------|
+| `PAYU_CLIENT_ID`       | OAuth client ID for PayU REST API           |
+| `PAYU_CLIENT_SECRET`   | OAuth client secret for PayU REST API       |
+| `PAYU_POS_ID`          | PayU Point of Sale (merchant) ID            |
 
-Learn more about [working with the Wix CLI](https://support.wix.com/en/article/velo-working-with-the-wix-cli-beta).
+The `posId` entered by the site owner on the **Connect PayU** screen in the Wix dashboard is also passed through `connectAccount()` and stored as part of the connected account's credentials - it is never exposed client-side.
 
-## Invite contributors to work with you
-Git Integration & Wix CLI extends Editor X's [concurrent editing](https://support.wix.com/en/article/editor-x-about-concurrent-editing) capabilities. Invite other developers as collaborators on your [site](https://support.wix.com/en/article/inviting-people-to-contribute-to-your-site) and your [GitHub repo](https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-personal-account-on-github/managing-access-to-your-personal-repositories/inviting-collaborators-to-a-personal-repository). Multiple developers can work on a site's code at once.
+If you fork/reuse this plugin, add these three secrets in **Dev Mode -> Secrets Manager** before connecting the payment provider, or `getPayuToken()` will throw at runtime.
+
+##  Features
+
+- **BLIK, card, instant bank transfer** - the full set of PayU payment methods, available directly on Wix checkout.
+- **OAuth 2.0** - secure authentication against the PayU API (client credentials grant).
+- **Automatic order updates** - the `payuNotify` webhook integrates with `wix-payment-provider-backend`, so orders, inventory, and statuses update exactly like they would with a native payment method.
+- **Fraud-check data** - the real customer IP is forwarded to PayU (`fraudInformation.remoteIp`) for risk scoring.
+- **Amounts in grosz (minor units)** - correctly converted per PayU API requirements.
+- **Secrets isolated from source code** - see [Credentials & secrets](#-credentials--secrets) above.
+
+## The tricky part
+
+The plugin silently refused to register in Accept Payments for a long time, despite fully working, test-passing code. Root cause: `getConfig()` returned `paymentMethods` as a plain object `{ hostedPage: {...} }` instead of the **array** `[{ hostedPage: {...} }]` required by Wix's schema, and `logos` used a `url` key instead of the required `svg`/`png` keys. The schema mismatch caused a **silent registration failure** with no readable error - the code passed all functional tests (since those only check JS syntax), but failed schema validation at publish time.
+
+## Stack
+
+- **Wix Velo** (Payment Provider Service Plugin)
+- **Wix CLI + Git Integration** - local development in VS Code
+- **PayU REST API v2.1** (OAuth 2.0, Orders API, Notifications)
+
+
+---
+
+*Built with persistence, a lot of debugging, and one very helpful line in the official Wix docs. -
+[Wix payment provider service plugin](https://dev.wix.com/docs/develop-websites/articles/code-tutorials/wix-pay/tutorial-payment-provider-service-plugin)
+
