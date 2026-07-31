@@ -1,20 +1,63 @@
 // @ts-nocheck
 
-import { ok, badRequest } from "wix-http-functions";
+import { ok, badRequest, forbidden } from "wix-http-functions";
 import wixPaymentProviderBackend from "wix-payment-provider-backend";
+import { getSecret } from "wix-secrets-backend";
+import * as CryptoJS from "crypto-js";
+
+function verifyPayuSignature(rawBody, signatureHeader, secondKey) {
+
+  if (!signatureHeader) return false;
+
+  const parts = {};
+
+  signatureHeader.split(";").forEach(function (pair) {
+    const [key, value] = pair.split("=");
+    if (key && value) parts[key.trim()] = value.trim();
+  });
+
+  const expectedSignature = CryptoJS.MD5(rawBody + secondKey).toString();
+
+  return parts.signature === expectedSignature;
+}
 
 export async function post_payuNotify(request) {
+
+  const rawBody = await request.body.text();
+
+  const signatureHeader = request.headers["openpayu-signature"];
+
+  const secondKey = await getSecret("PAYU_SECOND_KEY");
+
+  const isValid = verifyPayuSignature(rawBody, signatureHeader, secondKey);
+
+  if (!isValid) {
+    console.error(
+      "[PayU Webhook] Invalid signature - request rejected. Possible attempt to forge the notification.",
+    );
+
+    return forbidden();
+  }
+
   let body;
   try {
-    body = await request.body.json();
+    body = JSON.parse(rawBody);
   } catch (err) {
-    console.error("payuNotify: incorrect JSON", err);
+    console.error(
+      "[PayU Webhook] Signature valid, but content is not valid JSON:",
+      err,
+    );
+
     return badRequest();
   }
 
   const order = body?.order;
+
   if (!order || !order.extOrderId || !order.orderId) {
-    console.error("payuNotify: missing required fields", body);
+    console.error(
+      "[PayU Webhook] Missing required fields in notification:",
+      body,
+    );
     return badRequest();
   }
 
@@ -30,7 +73,7 @@ export async function post_payuNotify(request) {
       });
     } else {
       console.error(
-        "[PayU Webhook] Status:",
+        "[PayU Webhook] Signature verified. Status other than COMPLETED:",
         order.status,
         "| extOrderId:",
         order.extOrderId,
