@@ -6,7 +6,6 @@ import { getSecret } from "wix-secrets-backend";
 import * as CryptoJS from "crypto-js";
 
 function verifyPayuSignature(rawBody, signatureHeader, secondKey) {
-
   if (!signatureHeader) return false;
 
   const parts = {};
@@ -16,13 +15,17 @@ function verifyPayuSignature(rawBody, signatureHeader, secondKey) {
     if (key && value) parts[key.trim()] = value.trim();
   });
 
-  const expectedSignature = CryptoJS.MD5(rawBody + secondKey).toString();
+  const algorithm = (parts.algorithm || "MD5").toUpperCase();
+
+  const expectedSignature =
+    algorithm === "SHA256"
+      ? CryptoJS.SHA256(rawBody + secondKey).toString()
+      : CryptoJS.MD5(rawBody + secondKey).toString();
 
   return parts.signature === expectedSignature;
 }
 
 export async function post_payuNotify(request) {
-
   const rawBody = await request.body.text();
 
   const signatureHeader = request.headers["openpayu-signature"];
