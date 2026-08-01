@@ -8,6 +8,13 @@ A custom **PayU (BLIK / Card / Bank Transfer)** payment integration for [kulikst
 
 ---
 
+
+
+![Payment](https://lh3.googleusercontent.com/d/1PrPteCbmvSdUA2Vt1S8AGS8_p8EQfexj)
+
+
+
+
 ## Why this project exists
 
 Wix's native PayU integration (available under **Accept Payments**) only renders **card fields** at checkout - it never redirects to PayU's hosted payment page, so **BLIK, the most widely used payment method in Poland, never shows up**. The same turned out to be true for Wix's native Fondy integration.
