@@ -49,26 +49,44 @@ export async function post_payuNotify(request) {
     return badRequest();
   }
 
+  const transaction = toWixTransaction(order);
+  if (!transaction) {
+    // PENDING / WAITING_FOR_CONFIRMATION: Wix transaction is already pending.
+    console.log(
+      "[PayU Webhook] Status:",
+      order.status,
+      "| extOrderId:",
+      order.extOrderId,
+    );
+    return ok();
+  }
+
   try {
-    if (order.status === "COMPLETED") {
-      await wixPaymentProviderBackend.submitEvent({
-        event: {
-          transaction: {
-            wixTransactionId: order.extOrderId,
-            pluginTransactionId: order.orderId,
-          },
-        },
-      });
-    } else {
-      console.log(
-        "[PayU Webhook] Status:",
-        order.status,
-        "| extOrderId:",
-        order.extOrderId,
-      );
-    }
+    await wixPaymentProviderBackend.submitEvent({ event: { transaction } });
   } catch (err) {
     console.error("[PayU Webhook] submitEvent error:", err);
+    return serverError(); // PayU will retry the notification
   }
   return ok();
+}
+
+// Maps a PayU order to a Wix transaction event, or null when no update is needed.
+function toWixTransaction(order) {
+  const transaction = {
+    wixTransactionId: order.extOrderId,
+    pluginTransactionId: order.orderId,
+  };
+  switch (order.status) {
+    case "COMPLETED":
+      return transaction;
+    case "CANCELED":
+      return {
+        ...transaction,
+        reasonCode: 3030,
+        errorCode: "BUYER_CANCELED",
+        errorMessage: "Payment canceled in PayU.",
+      };
+    default:
+      return null;
+  }
 }
