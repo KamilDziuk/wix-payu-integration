@@ -1,6 +1,9 @@
 // @ts-nocheck
 import { fetch } from "wix-fetch";
+import { getSecret } from "wix-secrets-backend";
 import {
+  PayUEnabled,
+  isTest,
   PayUTestPointOfSalesId,
   PayUOrdersUrl,
   PayUNotifyUrl,
@@ -16,14 +19,28 @@ export async function connectAccount(options) {
   };
 }
 
+async function getPosId(merchantCredentials) {
+  if (isTest()) {
+    return PayUTestPointOfSalesId;
+  }
+  return merchantCredentials?.payUPosId || (await getSecret("PAYU_POS_ID"));
+}
+
 export async function createTransaction(options) {
   console.debug("PayU create transaction - start");
+  if (!PayUEnabled) {
+    console.warn("PayU create transaction - plugin disabled");
+    return {
+      errorCode: "PROVIDER_ERROR",
+      errorMessage: "PayU payments are disabled",
+    };
+  }
   try {
     const wixTransactionId = options?.wixTransactionId;
     const order = options?.order;
 
     if (!wixTransactionId || !order) {
-      console.warn("PayU get token - no wix transaction id");
+      console.warn("PayU create transaction - no transaction data");
       return {
         errorCode: "PROVIDER_ERROR",
         errorMessage: "No transaction data",
@@ -34,19 +51,26 @@ export async function createTransaction(options) {
     const totalAmount = order.description?.totalAmount || 0;
 
     if (items.length === 0) {
-      console.warn("PayU get token - no products in the order");
+      console.warn("PayU create transaction - no products in the order");
       return {
         errorCode: "PROVIDER_ERROR",
         errorMessage: "No products in the order",
       };
     }
 
-    const posId = PayUTestPointOfSalesId; // await getSecret("PAYU_POS_ID");
+    const posId = await getPosId(options?.merchantCredentials);
+    if (!posId) {
+      console.error("PayU create transaction - POS ID not configured");
+      return {
+        errorCode: "PROVIDER_ERROR",
+        errorMessage: "PayU POS ID not configured",
+      };
+    }
     const token = await getPayuToken();
 
     const payuOrder = {
       notifyUrl: PayUNotifyUrl,
-      continueUrl: getPayUContinueUrl(order._orderId),
+      continueUrl: order.returnUrls?.successUrl || getPayUContinueUrl(order._id),
       merchantPosId: posId,
       customerIp: options?.fraudInformation?.remoteIp || "127.0.0.1",
       extOrderId: wixTransactionId,
@@ -83,7 +107,7 @@ export async function createTransaction(options) {
           (data?.status?.statusCode || response.status),
       };
     }
-    console.debug("PayU get token - success: " + data.orderId);
+    console.debug("PayU create transaction - success: " + data.orderId);
 
     return {
       pluginTransactionId: data.orderId,

@@ -1,12 +1,9 @@
 import { PayUEnabled, isTest } from 'backend/payU/payU-env';
 
 export function getConfig() {
-  if(!PayUEnabled) {
-    console.log("PayU getConfig - disabled: no payment method will be registered");
-  }
-  console.log("PayU getConfig - enabled");
+  console.log(`PayU getConfig - ${PayUEnabled ? "enabled" : "disabled: transactions will be rejected"}`);
   return {
-    title: `PayU ${isTest() ? '[TEST ONLY - NOT REAL PAYMENT]' : ''}`,
+    title: isTest() ? 'PayU [TEST ONLY - NOT REAL PAYMENT]' : 'PayU',
     paymentMethods: [
       {
         hostedPage: {
