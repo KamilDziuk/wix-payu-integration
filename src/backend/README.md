@@ -1,6 +1,6 @@
 #  PayU Payment Provider Service Plugin - Wix Velo
 
-A custom **PayU (BLIK / Card / Bank Transfer)** payment integration for [kulikstyle.com](https://www.kulikstyle.com), built as a **Wix Payment Provider Service Plugin** in Velo, after discovering that the native Wix <-> PayU integration didn't support BLIK.
+A custom **PayU (BLIK / Card / Bank Transfer)** payment integration for [agnieszkalozinska.com](https://www.agnieszkalozinska.com), built as a **Wix Payment Provider Service Plugin** in Velo, after discovering that the native Wix <-> PayU integration didn't support BLIK.
 
 ![Status](https://img.shields.io/badge/status-live%20in%20production-brightgreen)
 ![Platform](https://img.shields.io/badge/platform-Wix%20Velo-blue)

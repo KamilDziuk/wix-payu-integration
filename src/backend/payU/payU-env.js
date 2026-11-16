@@ -8,8 +8,8 @@ export const PayUTestSecondKey = "13a980d4f851f3d9a1cfc792fb1f5e50";
 
 export const PayUAuthUrl = "https://secure.payu.com/pl/standard/user/oauth/authorize";
 export const PayUOrdersUrl = "https://secure.payu.com/api/v2_1/orders/";
-export const PayUNotifyUrl = "https://www.agnieszkalozinskacom.com/_functions/payuNotify";
-export const PayUContinueUrl = "https://www.agnieszkalozinskacom.com/thank-you-page";
+export const PayUNotifyUrl = "https://www.agnieszkalozinska.com/_functions/payuNotify";
+export const PayUContinueUrl = "https://www.agnieszkalozinska.com/thank-you-page";
 
 export function getPayUContinueUrl(orderId) {
     return orderId ? `${PayUContinueUrl}/${orderId}` : PayUContinueUrl;
