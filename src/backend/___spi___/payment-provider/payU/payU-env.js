@@ -10,7 +10,7 @@ export const PayUOrdersUrl = "https://secure.payu.com/api/v2_1/orders/";
 export const PayUNotifyUrl = "https://www.agnieszkalozinskacom.com/_functions/payuNotify";
 export const PayUContinueUrl = "https://www.agnieszkalozinskacom.com/thank-you-page";
 
-export function getPayUCContinueUrl(orderId) {
+export function getPayUContinueUrl(orderId) {
     return orderId ? `${PayUContinueUrl}/${orderId}` : PayUContinueUrl;
 }
 

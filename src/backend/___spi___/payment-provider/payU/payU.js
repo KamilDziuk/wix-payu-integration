@@ -95,7 +95,7 @@ export async function createTransaction(options) {
 
     const payuOrder = {
       notifyUrl: PayUNotifyUrl,
-      continueUrl: getPayUCContinueUrl(order._orderId),
+      continueUrl: getPayUContinueUrl(order._orderId),
       merchantPosId: posId,
       customerIp: options?.fraudInformation?.remoteIp || "127.0.0.1",
       extOrderId: wixTransactionId,
