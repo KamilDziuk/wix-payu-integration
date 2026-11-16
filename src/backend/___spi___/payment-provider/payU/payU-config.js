@@ -1,4 +1,4 @@
-import { PayUEnabled, isTest } from './payU-env';
+import { PayUEnabled, isTest } from 'backend/payU/payU-env';
 
 export function getConfig() {
   if(!PayUEnabled) {

@@ -1,61 +1,12 @@
 // @ts-nocheck
 import { fetch } from "wix-fetch";
-import { getSecret } from "wix-secrets-backend";
 import {
-  isTest,
-  PayUTestClientId,
   PayUTestPointOfSalesId,
-  PayUTestClientSecret,
-  PayUAuthUrl,
   PayUOrdersUrl,
   PayUNotifyUrl,
   getPayUContinueUrl,
-} from './payU-env';
-
-async function getClientId() {
-  if (isTest()) {
-    return PayUTestClientId;
-  }
-  return await getSecret("PAYU_CLIENT_ID");
-}
-
-async function getClientSecret() {
-  if (isTest()) {
-    return PayUTestClientSecret;
-  }
-  return await getSecret("PAYU_CLIENT_SECRET");
-}
-
-async function getPayuToken() {
-  console.debug("PayU get token - start");
-  const clientId = await getClientId();
-  const clientSecret = await getClientSecret();
-
-  const response = await fetch(PayUAuthUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-
-      body:
-        "grant_type=client_credentials" +
-        "&client_id=" +
-        encodeURIComponent(clientId) +
-        "&client_secret=" +
-        encodeURIComponent(clientSecret),
-    },
-  );
-
-  if (!response.ok) {
-    console.error("PayU get token - response error: " + response);
-    throw new Error("Error OAuth PayU: " + response.status);
-  }
-  const data = await response.json();
-  if (!data.access_token) { 
-    console.error("PayU get token - no token provided: " + data);
-    throw new Error("PayU did not return a token");
-  }
-  console.debug("PayU get token - success");
-  return data.access_token;
-}
+} from 'backend/payU/payU-env';
+import { getPayuToken } from 'backend/payU/payU-client';
 
 export async function connectAccount(options) {
   console.debug("PayU connect account");
