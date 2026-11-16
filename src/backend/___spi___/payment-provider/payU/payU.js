@@ -9,7 +9,7 @@ import {
   PayUAuthUrl,
   PayUOrdersUrl,
   PayUNotifyUrl,
-  PayUContinueUrl,
+  getPayUContinueUrl,
 } from './payU-env';
 
 async function getClientId() {
@@ -95,7 +95,7 @@ export async function createTransaction(options) {
 
     const payuOrder = {
       notifyUrl: PayUNotifyUrl,
-      continueUrl: PayUContinueUrl,
+      continueUrl: getPayUCContinueUrl(order._orderId),
       merchantPosId: posId,
       customerIp: options?.fraudInformation?.remoteIp || "127.0.0.1",
       extOrderId: wixTransactionId,
