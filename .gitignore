@@ -6,3 +6,6 @@ node_modules/
 .wix/
 jsconfig.json
 
+
+# test coverage
+coverage/
