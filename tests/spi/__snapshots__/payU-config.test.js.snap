@@ -1,0 +1,44 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`getConfig > matches the registered config 1`] = `
+{
+  "credentialsFields": [
+    {
+      "simpleField": {
+        "label": "PayU POS ID",
+        "name": "payUPosId",
+      },
+    },
+  ],
+  "paymentMethods": [
+    {
+      "hostedPage": {
+        "billingAddressMandatoryFields": [
+          "ZIPCODE",
+          "CITY",
+          "STATE",
+          "ADDRESS",
+          "COUNTRY_CODE",
+          "EMAIL",
+          "FIRST_NAME",
+          "LAST_NAME",
+          "STREET",
+          "HOUSE_NUMBER",
+        ],
+        "logos": {
+          "colored": {
+            "png": "https://commons.wikimedia.org/wiki/Special:FilePath/PayU.svg?width=300",
+            "svg": "https://commons.wikimedia.org/wiki/Special:FilePath/PayU.svg",
+          },
+          "white": {
+            "png": "https://commons.wikimedia.org/wiki/Special:FilePath/PayU.svg?width=300",
+            "svg": "https://commons.wikimedia.org/wiki/Special:FilePath/PayU.svg",
+          },
+        },
+        "title": "PayU - BLIK / Karta / Przelew",
+      },
+    },
+  ],
+  "title": "PayU",
+}
+`;
