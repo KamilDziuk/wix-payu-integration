@@ -102,8 +102,18 @@ export async function getPayuToken() {
 
 // Returns the PayU order, or null if PayU does not know it.
 export async function getPayuOrder(orderId) {
+  return fetchOrder(PayUOrdersUrl + encodeURIComponent(orderId), orderId);
+}
+
+// Same as getPayuOrder, looked up by our extOrderId (the Wix transaction ID).
+// Not in PayU's public API reference, but answers like GET /orders/{orderId}.
+export async function getPayuOrderByExtId(extOrderId) {
+  return fetchOrder(PayUOrdersUrl + "ext/" + encodeURIComponent(extOrderId), extOrderId);
+}
+
+async function fetchOrder(url, orderId) {
   const token = await getPayuToken();
-  const response = await fetch(PayUOrdersUrl + encodeURIComponent(orderId), {
+  const response = await fetch(url, {
     method: "GET",
     headers: { Authorization: "Bearer " + token },
   });
@@ -141,6 +151,24 @@ function safeEqual(a, b) {
     diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   }
   return diff === 0;
+}
+
+// HMAC of a value with the second key, to protect our own URL parameters.
+export async function signValue(value) {
+  const secondKey = await getSecondKey();
+  if (!secondKey) {
+    throw new Error("PayU second key not configured");
+  }
+  return CryptoJS.HmacSHA256(value, secondKey).toString().slice(0, 32);
+}
+
+export async function verifySignedValue(value, signature) {
+  try {
+    return safeEqual(String(signature || ""), await signValue(value));
+  } catch (err) {
+    logError("Signature", "cannot verify signed value", { error: err.message });
+    return false;
+  }
 }
 
 // Header: "sender=checkout;signature=...;algorithm=MD5;content=DOCUMENT"

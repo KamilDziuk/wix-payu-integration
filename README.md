@@ -30,7 +30,24 @@ Customer -> Wix Checkout → selects "PayU - BLIK / Card / Bank Transfer"
         -> pays (BLIK / card / bank transfer)
         -> PayU sends a webhook (payuNotify) -> submitEvent() -> Wix eCommerce
         -> order is marked as paid, inventory updates automatically
+        -> buyer returns via payuReturn, which checks the PayU status and
+           redirects to the Wix success / pending / cancel / error page
 ```
+
+### Return page
+
+PayU accepts a single return URL, so the buyer comes back to
+`/_functions/payuReturn`. The Wix return URLs travel in that URL (signed with
+the second key, so they can't be swapped for another site), and the status is
+read from PayU by `extOrderId`:
+
+| PayU status on return | Buyer is sent to |
+|---|---|
+| `COMPLETED`, `WAITING_FOR_CONFIRMATION` | `successUrl` |
+| `NEW` / `PENDING` (after ~3 s of retries) | `pendingUrl` |
+| `CANCELED` | `cancelUrl` (`errorUrl` if PayU added `error=`) |
+| `error=` from PayU (not completed) | `errorUrl` |
+| status lookup failed | `pendingUrl` |
 
 ## Project structure
 

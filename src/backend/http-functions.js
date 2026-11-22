@@ -1,15 +1,90 @@
 // @ts-nocheck
 
-import { ok, badRequest, forbidden, serverError } from "wix-http-functions";
+import {
+  ok,
+  badRequest,
+  forbidden,
+  serverError,
+  response,
+} from "wix-http-functions";
 import wixPaymentProviderBackend from "wix-payment-provider-backend";
 import {
   verifyPayuSignature,
   getPayuOrder,
+  getPayuOrderByExtId,
   summarizeOrder,
 } from "backend/payU/payU-client";
+import {
+  readReturnParams,
+  pickReturnTarget,
+  resolveReturnUrl,
+} from "backend/payU/payU-return";
+import { getPayUContinueUrl } from "backend/payU/payU-env";
 import { logInfo, logWarn, logError } from "backend/payU/payU-log";
 
 const SCOPE = "Webhook";
+const RETURN_SCOPE = "Return";
+// BLIK and card payments often settle a few seconds after the buyer returns.
+const PENDING_RETRIES = 2;
+const PENDING_RETRY_DELAY_MS = 1500;
+
+// PayU continueUrl: /_functions/payuReturn?tx=<wixTransactionId>&s=..&e=..&p=..&c=..&sig=..
+// PayU may append error=501 when the payment failed.
+export async function get_payuReturn(request) {
+  const payuError = request.query?.error;
+  const params = await readReturnParams(request.query);
+  logInfo(RETURN_SCOPE, "buyer returned from PayU", {
+    tx: params?.tx,
+    error: payuError,
+  });
+
+  if (!params || !params.valid) {
+    logWarn(RETURN_SCOPE, "missing or invalid signed parameters, redirecting to fallback page", {
+      tx: params?.tx,
+    });
+    return redirect(getPayUContinueUrl());
+  }
+
+  let status = null;
+  try {
+    status = await fetchStatus(params.tx, !payuError);
+  } catch (err) {
+    logError(RETURN_SCOPE, "could not fetch order status", {
+      tx: params.tx,
+      error: err?.message || String(err),
+    });
+  }
+
+  const target = pickReturnTarget(status, payuError);
+  const { url, field } = resolveReturnUrl(params.urls, target);
+  logInfo(RETURN_SCOPE, "redirecting buyer", {
+    tx: params.tx,
+    status,
+    error: payuError,
+    target,
+    used: field,
+  });
+  return redirect(url);
+}
+
+async function fetchStatus(extOrderId, waitWhilePending) {
+  for (let attempt = 0; ; attempt++) {
+    const order = await getPayuOrderByExtId(extOrderId);
+    const status = order?.status || null;
+    const pending = status === "NEW" || status === "PENDING";
+    if (!pending || !waitWhilePending || attempt >= PENDING_RETRIES) {
+      return status;
+    }
+    await new Promise((resolve) => setTimeout(resolve, PENDING_RETRY_DELAY_MS));
+  }
+}
+
+function redirect(url) {
+  return response({
+    status: 302,
+    headers: { Location: url, "Cache-Control": "no-store" },
+  });
+}
 
 export async function post_payuNotify(request) {
   // Signature is computed over the exact raw body, so read text before parsing.
@@ -129,8 +204,9 @@ function toWixTransaction(order) {
         errorCode: "BUYER_CANCELED",
         errorMessage: "Payment canceled in PayU.",
       };
+    case "NEW":
     case "PENDING":
-      logInfo(SCOPE, "PENDING: buyer has not paid yet, no Wix update", summary);
+      logInfo(SCOPE, order.status + ": buyer has not paid yet, no Wix update", summary);
       return null;
     case "WAITING_FOR_CONFIRMATION":
       logWarn(

@@ -7,9 +7,9 @@ import {
   PayUTestPointOfSalesId,
   PayUOrdersUrl,
   PayUNotifyUrl,
-  getPayUContinueUrl,
 } from 'backend/payU/payU-env';
 import { getPayuToken, readResponse } from 'backend/payU/payU-client';
+import { buildContinueUrl } from 'backend/payU/payU-return';
 import { logInfo, logWarn, logError } from 'backend/payU/payU-log';
 
 export async function connectAccount(options) {
@@ -68,7 +68,11 @@ export async function createTransaction(options) {
     }
     const token = await getPayuToken();
 
-    const continueUrl = order.returnUrls?.successUrl || getPayUContinueUrl(order._id);
+    // PayU has a single return URL; payuReturn picks the Wix page by status.
+    if (!order.returnUrls) {
+      logWarn("Create", "no returnUrls from Wix, buyer will land on fallback page", context);
+    }
+    const continueUrl = await buildContinueUrl(wixTransactionId, order.returnUrls);
     const customerIp = options?.fraudInformation?.remoteIp;
     if (!customerIp) {
       logWarn("Create", "no buyer IP from Wix, using 127.0.0.1", context);
