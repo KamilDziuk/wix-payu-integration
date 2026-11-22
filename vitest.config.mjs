@@ -21,6 +21,7 @@ export default defineConfig({
   },
   test: {
     include: ["tests/**/*.test.js"],
+    setupFiles: ["./tests/setup.js"],
     passWithNoTests: true,
     clearMocks: true,
     coverage: {
