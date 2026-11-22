@@ -10,6 +10,7 @@ import {
   PayUAuthUrl,
   PayUOrdersUrl,
 } from "backend/payU/payU-env";
+import { logInfo, logWarn, logError } from "backend/payU/payU-log";
 
 async function getClientId() {
   return isTest() ? PayUTestClientId : await getSecret("PAYU_CLIENT_ID");
@@ -23,10 +24,45 @@ async function getSecondKey() {
   return isTest() ? PayUTestSecondKey : await getSecret("PAYU_SECOND_KEY");
 }
 
+// Reads a response body as JSON, keeping the raw text when it is not JSON
+// (PayU returns HTML error pages for some failures).
+export async function readResponse(response) {
+  const text = await response.text();
+  try {
+    return { data: JSON.parse(text), text };
+  } catch (_err) {
+    return { data: null, text: text ? text.slice(0, 1000) : "" };
+  }
+}
+
+// PayU order fields worth logging, without buyer personal data.
+export function summarizeOrder(order) {
+  if (!order) {
+    return null;
+  }
+  return {
+    orderId: order.orderId,
+    extOrderId: order.extOrderId,
+    status: order.status,
+    totalAmount: order.totalAmount,
+    currencyCode: order.currencyCode,
+    payMethod: order.payMethod?.type,
+    orderCreateDate: order.orderCreateDate,
+    localReceiptDateTime: order.localReceiptDateTime,
+  };
+}
+
 export async function getPayuToken() {
-  console.debug("PayU get token - start");
   const clientId = await getClientId();
   const clientSecret = await getClientSecret();
+  if (!clientId || !clientSecret) {
+    logError("Token", "client ID or secret not configured", {
+      test: isTest(),
+      hasClientId: !!clientId,
+      hasClientSecret: !!clientSecret,
+    });
+    throw new Error("PayU client credentials not configured");
+  }
 
   const response = await fetch(PayUAuthUrl, {
     method: "POST",
@@ -38,17 +74,29 @@ export async function getPayuToken() {
       "&client_secret=" +
       encodeURIComponent(clientSecret),
   });
+  const { data, text } = await readResponse(response);
 
   if (!response.ok) {
-    console.error("PayU get token - response error: " + response.status);
-    throw new Error("Error OAuth PayU: " + response.status);
+    logError("Token", "OAuth request failed", {
+      httpStatus: response.status,
+      error: data?.error,
+      errorDescription: data?.error_description,
+      body: data ? undefined : text,
+    });
+    throw new Error("PayU OAuth error: " + response.status);
   }
-  const data = await response.json();
-  if (!data.access_token) {
-    console.error("PayU get token - no token provided");
+  if (!data?.access_token) {
+    logError("Token", "no access_token in response", {
+      httpStatus: response.status,
+      body: text,
+    });
     throw new Error("PayU did not return a token");
   }
-  console.debug("PayU get token - success");
+  logInfo("Token", "obtained", {
+    clientId,
+    expiresIn: data.expires_in,
+    grantType: data.grant_type,
+  });
   return data.access_token;
 }
 
@@ -59,15 +107,29 @@ export async function getPayuOrder(orderId) {
     method: "GET",
     headers: { Authorization: "Bearer " + token },
   });
+  const { data, text } = await readResponse(response);
 
   if (response.status === 404) {
+    logWarn("Order", "not found in PayU", { orderId, status: data?.status });
     return null;
   }
   if (!response.ok) {
+    logError("Order", "fetch failed", {
+      orderId,
+      httpStatus: response.status,
+      status: data?.status,
+      body: data ? undefined : text,
+    });
     throw new Error("PayU get order - response error: " + response.status);
   }
-  const data = await response.json();
-  return data?.orders?.[0] || null;
+
+  const order = data?.orders?.[0] || null;
+  logInfo("Order", "fetched", {
+    responseStatus: data?.status?.statusCode,
+    order: summarizeOrder(order),
+    properties: data?.properties,
+  });
+  return order;
 }
 
 function safeEqual(a, b) {
@@ -85,6 +147,7 @@ function safeEqual(a, b) {
 // Expected signature: hash(rawBody + secondKey)
 export async function verifyPayuSignature(rawBody, signatureHeader) {
   if (!signatureHeader) {
+    logWarn("Signature", "missing OpenPayu-Signature header");
     return false;
   }
   const parts = {};
@@ -97,12 +160,18 @@ export async function verifyPayuSignature(rawBody, signatureHeader) {
       }
     });
   if (!parts.signature) {
+    logWarn("Signature", "no signature in header", {
+      sender: parts.sender,
+      algorithm: parts.algorithm,
+    });
     return false;
   }
 
   const secondKey = await getSecondKey();
   if (!secondKey) {
-    console.error("PayU verify signature - second key not configured");
+    logError("Signature", "second key not configured (PAYU_SECOND_KEY)", {
+      test: isTest(),
+    });
     return false;
   }
 
@@ -113,9 +182,17 @@ export async function verifyPayuSignature(rawBody, signatureHeader) {
   } else if (algorithm === "SHA256") {
     expected = CryptoJS.SHA256(rawBody + secondKey).toString();
   } else {
-    console.error("PayU verify signature - unsupported algorithm: " + algorithm);
+    logError("Signature", "unsupported algorithm", { algorithm });
     return false;
   }
 
-  return safeEqual(parts.signature.toLowerCase(), expected);
+  const valid = safeEqual(parts.signature.toLowerCase(), expected);
+  if (!valid) {
+    logWarn("Signature", "mismatch - wrong second key or forged request", {
+      sender: parts.sender,
+      algorithm,
+      test: isTest(),
+    });
+  }
+  return valid;
 }
