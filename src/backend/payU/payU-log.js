@@ -18,6 +18,11 @@ function format(scope, message, data) {
   return data === undefined ? line : line + " " + serialize(data);
 }
 
+// Short error text for log data; thrown values are not always Errors.
+export function describeError(error) {
+  return error?.message || String(error);
+}
+
 export function logInfo(scope, message, data) {
   console.log(format(scope, message, data));
 }

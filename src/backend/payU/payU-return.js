@@ -6,6 +6,7 @@
 import { PayUReturnUrl, getPayUContinueUrl } from "backend/payU/payU-env";
 import { signValue, verifySignedValue } from "backend/payU/payU-client";
 import { logWarn } from "backend/payU/payU-log";
+import { PayUOrderStatus, hasBuyerPaid } from "backend/payU/payU-order-status";
 
 const MAX_URL_LENGTH = 1024; // PayU continueUrl limit
 
@@ -89,19 +90,23 @@ export async function readReturnParams(query) {
   return { tx, valid, urls: returnUrls };
 }
 
+// Wix page the buyer is sent to for each PayU order status.
+const returnPageByStatus = {
+  [PayUOrderStatus.COMPLETED]: "successUrl",
+  [PayUOrderStatus.WAITING_FOR_CONFIRMATION]: "successUrl",
+  [PayUOrderStatus.CANCELED]: "cancelUrl",
+  [PayUOrderStatus.NEW]: "pendingUrl",
+  [PayUOrderStatus.PENDING]: "pendingUrl",
+};
+// Unknown status or failed lookup: claim neither success nor failure.
+const returnPageForUnknownStatus = "pendingUrl";
+
 // Returns the name of the Wix return URL to use.
-export function pickReturnTarget(status, payuError) {
-  switch (status) {
-    case "COMPLETED":
-    case "WAITING_FOR_CONFIRMATION": // buyer paid, merchant still has to confirm
-      return "successUrl";
-    case "CANCELED":
-      return payuError ? "errorUrl" : "cancelUrl";
-    default:
-      // NEW, PENDING, unknown or lookup failed: don't claim success or
-      // failure, unless PayU told us the payment failed.
-      return payuError ? "errorUrl" : "pendingUrl";
+export function pickReturnTarget(status, payuReportedFailure) {
+  if (payuReportedFailure && !hasBuyerPaid(status)) {
+    return "errorUrl";
   }
+  return returnPageByStatus[status] || returnPageForUnknownStatus;
 }
 
 const FALLBACKS = {
