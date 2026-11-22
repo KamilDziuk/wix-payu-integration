@@ -86,6 +86,19 @@ If you fork/reuse this plugin, add these three secrets in **Dev Mode -> Secrets 
 
 The plugin silently refused to register in Accept Payments for a long time, despite fully working, test-passing code. Root cause: `getConfig()` returned `paymentMethods` as a plain object `{ hostedPage: {...} }` instead of the **array** `[{ hostedPage: {...} }]` required by Wix's schema, and `logos` used a `url` key instead of the required `svg`/`png` keys. The schema mismatch caused a **silent registration failure** with no readable error - the code passed all functional tests (since those only check JS syntax), but failed schema validation at publish time.
 
+## Tests
+
+Unit tests use [Vitest](https://vitest.dev). Wix-only modules (`wix-fetch`,
+`wix-secrets-backend`, `wix-http-functions`, ...) are replaced by test doubles
+in `tests/mocks/`, and `backend/...` imports resolve to `src/backend/`.
+Tests live outside `src/`, so they are never synced to the site.
+
+```bash
+npm install --ignore-scripts   # skips `wix sync-types`, which needs a Wix login
+npm test                       # run the suite
+npm run coverage               # run with coverage (fails below 80%)
+```
+
 ## Stack
 
 - **Wix Velo** (Payment Provider Service Plugin)
