@@ -9,6 +9,8 @@ export const PayUTestSecondKey = "13a980d4f851f3d9a1cfc792fb1f5e50";
 export const PayUAuthUrl = "https://secure.payu.com/pl/standard/user/oauth/authorize";
 export const PayUOrdersUrl = "https://secure.payu.com/api/v2_1/orders/";
 export const PayUNotifyUrl = "https://www.agnieszkalozinska.com/_functions/payuNotify";
+export const PayUReturnUrl = "https://www.agnieszkalozinska.com/_functions/payuReturn";
+// Fallback when the Wix return URLs are unknown.
 export const PayUContinueUrl = "https://www.agnieszkalozinska.com/thank-you-page";
 
 export function getPayUContinueUrl(orderId) {

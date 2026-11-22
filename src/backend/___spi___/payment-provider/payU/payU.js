@@ -7,9 +7,10 @@ import {
   PayUTestPointOfSalesId,
   PayUOrdersUrl,
   PayUNotifyUrl,
-  getPayUContinueUrl,
+  PayUReturnUrl,
 } from 'backend/payU/payU-env';
 import { getPayuToken, readResponse } from 'backend/payU/payU-client';
+import { saveTransaction } from 'backend/payU/payU-store';
 import { logInfo, logWarn, logError } from 'backend/payU/payU-log';
 
 export async function connectAccount(options) {
@@ -68,7 +69,11 @@ export async function createTransaction(options) {
     }
     const token = await getPayuToken();
 
-    const continueUrl = order.returnUrls?.successUrl || getPayUContinueUrl(order._id);
+    // PayU has a single return URL; payuReturn picks the Wix page by status.
+    const continueUrl = PayUReturnUrl + "?tx=" + encodeURIComponent(wixTransactionId);
+    if (!order.returnUrls) {
+      logWarn("Create", "no returnUrls from Wix, buyer will land on fallback page", context);
+    }
     const customerIp = options?.fraudInformation?.remoteIp;
     if (!customerIp) {
       logWarn("Create", "no buyer IP from Wix, using 127.0.0.1", context);
@@ -133,6 +138,16 @@ export async function createTransaction(options) {
       );
     }
     logInfo("Create", "success: buyer redirected to PayU", result);
+
+    // A failed save only degrades the return page, so the payment goes on.
+    await saveTransaction(wixTransactionId, {
+      payuOrderId: data.orderId,
+      wixOrderId: order._id,
+      successUrl: order.returnUrls?.successUrl,
+      errorUrl: order.returnUrls?.errorUrl,
+      cancelUrl: order.returnUrls?.cancelUrl,
+      pendingUrl: order.returnUrls?.pendingUrl,
+    });
 
     return {
       pluginTransactionId: data.orderId,

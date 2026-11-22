@@ -30,7 +30,32 @@ Customer -> Wix Checkout → selects "PayU - BLIK / Card / Bank Transfer"
         -> pays (BLIK / card / bank transfer)
         -> PayU sends a webhook (payuNotify) -> submitEvent() -> Wix eCommerce
         -> order is marked as paid, inventory updates automatically
+        -> buyer returns via payuReturn, which checks the PayU status and
+           redirects to the Wix success / pending / cancel / error page
 ```
+
+### Return page setup
+
+PayU accepts a single return URL, so the plugin sends the buyer to
+`/_functions/payuReturn?tx=<wixTransactionId>`. To pick the right Wix page it
+needs the PayU order ID and Wix return URLs saved at checkout, stored in a CMS
+collection:
+
+1. In the Wix dashboard, create a CMS collection with the ID **`PayUTransactions`**.
+2. Set its permissions to **Admin only** (the backend reads it with elevated access).
+3. No fields are needed up front; they are added on first save
+   (`payuOrderId`, `wixOrderId`, `successUrl`, `errorUrl`, `cancelUrl`, `pendingUrl`).
+
+Without the collection, payments still work, but the buyer always lands on the
+fallback `/thank-you-page`.
+
+| PayU status on return | Buyer is sent to |
+|---|---|
+| `COMPLETED`, `WAITING_FOR_CONFIRMATION` | `successUrl` |
+| `PENDING` (after ~3 s of retries) | `pendingUrl` |
+| `CANCELED` | `cancelUrl` (`errorUrl` if PayU added `error=`) |
+| `error=` from PayU (not completed) | `errorUrl` |
+| status lookup failed | `pendingUrl` |
 
 ## Project structure
 
